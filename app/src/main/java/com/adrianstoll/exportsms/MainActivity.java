@@ -1,8 +1,10 @@
 package com.adrianstoll.exportsms;
 
 import android.Manifest;
+import android.content.ContentResolver;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -15,10 +17,13 @@ import android.provider.Telephony.Sms;
 import android.provider.Telephony.Mms;
 import android.widget.Toast;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -59,9 +64,11 @@ public class MainActivity extends AppCompatActivity {
 			Manifest.permission.WRITE_EXTERNAL_STORAGE
 	};
 	private int numPermissionsGranted = 0;
+	private final static int SMS_EXPORT = 0;
+	private final static int MMS_EXPORT = 1;
 
 	@Override
-	public void onRequestPermissionsResult(int requestCode,
+	public void onRequestPermissionsResult(int requestType,
 										   String permissions[],
 										   int[] grantResults) {
 		for (int i = 0; i < permissions.length; ++i) {
@@ -73,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
 		}
 		// Only continue when all request permissions have been granted
 		if (this.numPermissionsGranted == REQUIRED_PERMISSIONS.length) {
-			this.exportSMS();
+			this.export(requestType);
 		}
 	}
 
@@ -82,30 +89,24 @@ public class MainActivity extends AppCompatActivity {
 
 		// Write array of messages
 		writer.beginArray();
-
-		// see: https://developer.android.com/reference/android/provider/Telephony.TextBasedSmsColumns#MESSAGE_TYPE_ALL
-		// TODO: fetch names from contacts
 		while (cur.moveToNext()) {
 			// Write message object
-			//Log.d("adrs","{");
 			writer.beginObject();
 			int numCols = cur.getColumnCount();
 			for (int i = 0; i < numCols; ++i) {
 				String name = cur.getColumnName(i);
 				String value = cur.getString(i);
-				//Log.d("adrs", "\t" + name + ": " + value);
 				writer.name(name).value(value);
 			}
-			//Log.d("adrs","}");
 			writer.endObject();
 		}
 		writer.endArray();
 		writer.close();
-		Log.d("adrs", "finished export");
 	}
 
-	public void exportSMS() {
-		// Make sure we have the proper permissions
+	// Asks user for any required ungranted permissions
+	// Returns true if app already has all required permissions
+	private boolean aquirePermissions(int requestCode) {
 		// See what permissions were're missing
 		this.numPermissionsGranted = 0;
 		ArrayList<String> ungrantedPermissions = new ArrayList<String>();
@@ -120,55 +121,86 @@ public class MainActivity extends AppCompatActivity {
 		// Ask for ungranted permissions
 		if (this.numPermissionsGranted != REQUIRED_PERMISSIONS.length) {
 			Log.d("adrs", "asking for permissions");
-			ActivityCompat.requestPermissions(this, ungrantedPermissions.toArray(new String[0]), 0);
+			ActivityCompat.requestPermissions(this, ungrantedPermissions.toArray(new String[0]), requestCode);
 			Log.d("adrs", "Asked for permissions");
+			return false;
+		}
+		return true;
+	}
+
+	/*
+	public void dumpContentResolver(ContentResolver content, OutputStream output) {
+
+	}*/
+
+	public void export(int exportType) {
+		// Make sure we have the proper permissions
+		if (!this.aquirePermissions(exportType)) {
 			return;
 		}
-
-		// Get a cursor into the SMS message database
+		// Get a cursor into the message database
+		Uri contentUri = exportType == MainActivity.MMS_EXPORT ? Mms.CONTENT_URI : Sms.CONTENT_URI;
 		// https://stackoverflow.com/questions/3012287/how-to-read-mms-data-in-android/6446831#6446831 does not get all of them
-		// Does not get all messages :(
-		//Telephony.MmsSms.CONTENT_CONVERSATIONS_URI,
-
-		// TODO: do for Mms.CONTENT_URI too
 		Cursor messageCursor = getContentResolver().query(
-				Sms.CONTENT_URI,
+				contentUri,
 				null,
 				null,
 				null,
 				null);
 
 		// Create file to export messages to
+		String prefix = exportType == MainActivity.MMS_EXPORT ? "MMS" : "SMS";
 		String timestamp = new SimpleDateFormat("yyyyMMdd").format(new Date());
-		String exportPath = "SMS-Export-" + timestamp + ".json";
+		String exportPath = prefix + "-Export-" + timestamp + ".json";
 		File exportFile = this.getExportFile(exportPath);
-		if (exportFile.exists()) {
+		/*if (exportFile.exists()) {
 			this.showMessage("File " + exportPath + " in downloads already exists. Aborting.");
 			return;
-		}
+		}*/
 		Log.d("adrs", "About to dump");
 		// Dump messages to json file
 		try {
 			// TODO: run in separate thread
 			// TODO: show progress bar + cancel button?
-			this.dumpToJson(messageCursor, new OutputStreamWriter(new FileOutputStream(exportFile), "UTF-8"));
+			this.dumpToJson(messageCursor, new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(exportFile)), "UTF-8"));
 			messageCursor.close();
 		} catch (IOException e) {
 			this.showMessage("could not export messages: " + e.toString());
 			return;
+		}
+		// Export MMS data
+		if(exportType == MainActivity.MMS_EXPORT) {
+			Log.d("adrs", "About to dump MMS parts");
+			Cursor dataCursor = getContentResolver().query(
+					Uri.parse("content://mms/part"),
+					null,
+					null,
+					null,
+					null);
+
+			String dataPath = prefix + "-Parts-Export-" + timestamp + ".json";
+			exportFile = this.getExportFile(dataPath);
+			try {
+				// TODO: run in separate thread
+				// TODO: show progress bar + cancel button?
+				this.dumpToJson(dataCursor, new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(exportFile)), "UTF-8"));
+				dataCursor.close();
+			} catch (IOException e) {
+				this.showMessage("could not export MMS parts: " + e.toString());
+				return;
+			}
 		}
 		this.showMessage("Finished Export");
 	}
 
 	public void exportSmsHandler(View view) {
 		// TODO: export Multimedia SMS + annotate with contact names
-		// TODO: Change UI, Export SMS, Export MMS
 		// TODO: check that all messages are being exported
 		// TODO: create an ICON
-		exportSMS();
+		export(MainActivity.SMS_EXPORT);
 	}
 
 	public void exportMmsHandler(View view) {
-		Log.d("adrs", "export Mms");
+		export(MainActivity.MMS_EXPORT);
 	}
 }
