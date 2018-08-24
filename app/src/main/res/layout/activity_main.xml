@@ -10,7 +10,7 @@
         android:id="@+id/exportButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:onClick="exportSMS"
+        android:onClick="exportHandler"
         android:text="Export"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

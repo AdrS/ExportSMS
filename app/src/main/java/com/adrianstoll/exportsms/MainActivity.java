@@ -38,16 +38,17 @@ public class MainActivity extends AppCompatActivity {
     		return;
 		}
 		if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-    		Log.d("adrs", "permission granted");
-    		// TODO: run export
+    		Log.d("adrs", "READ_SMS permission granted");
+			this.exportSMS();
 		} else {
+			Log.d("adrs", "READ_SMS permission not granted");
 			this.showMessage("READ_SMS permission must be granted to export messages");
 		}
 	}
-    public void exportSMS(View view) {
-        Log.d("adrs", "Exporting SMS messages...");
-        Log.d("adrs", Telephony.Sms.CONTENT_URI.toString());
-        // Check if we have the permission to read SMS messages
+	public void exportSMS() {
+		Log.d("adrs", "Exporting SMS messages...");
+		Log.d("adrs", Telephony.Sms.CONTENT_URI.toString());
+		// Check if we have the permission to read SMS messages
 		if(ContextCompat.checkSelfPermission(this,
 				Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
 			ActivityCompat.requestPermissions(this,
@@ -57,12 +58,25 @@ public class MainActivity extends AppCompatActivity {
 			return;
 		}
 		Log.d("adrs", "Have permission");
-        Cursor messageCursor = getContentResolver().query(
-                Telephony.Sms.CONTENT_URI,
-                null,
-                null,
-                null,
-                null);
-        messageCursor.close();
+		Cursor messageCursor = getContentResolver().query(
+				Telephony.Sms.CONTENT_URI,
+				null,
+				null,
+				null,
+				null);
+		int max = 25;
+		int cur = 0;
+		while(messageCursor.moveToNext() && cur < max) {
+			int numCols = messageCursor.getColumnCount();
+			for(int i = 0; i < numCols; ++i) {
+				Log.d("adrs",
+						messageCursor.getColumnName(i) + ": " + messageCursor.getString(i));
+			}
+			++cur;
+		}
+		messageCursor.close();
+	}
+    public void exportHandler(View view) {
+        exportSMS();
     }
 }
