@@ -6,16 +6,30 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/exportButton"
+    <LinearLayout
+        android:id="@+id/linearLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:onClick="exportHandler"
-        android:text="Export"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <Button
+            android:id="@+id/exportSmsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="exportSmsHandler"
+            android:text="Export SMS" />
+
+        <Button
+            android:id="@+id/exportMssButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="exportMmsHandler"
+            android:text="Export MMS" />
+    </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>
