@@ -132,10 +132,15 @@ public class MainActivity extends AppCompatActivity {
 
 	public void dumpContentResolver(Uri uri, OutputStream output) throws IOException {
 		InputStream input = getContentResolver().openInputStream(uri);
-		if(input == null) {
-			return;
+		byte[] buff = new byte[4096];
+		while(true) {
+			int len = input.read(buff);
+			if(len == -1) {
+				break;
+			}
+			output.write(buff, 0, len);
 		}
-		output.write(input.read());
+		output.close();
 	}
 
 	public void export(int exportType) {
