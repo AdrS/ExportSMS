@@ -19,8 +19,10 @@ import android.widget.Toast;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.URL;
@@ -128,10 +130,13 @@ public class MainActivity extends AppCompatActivity {
 		return true;
 	}
 
-	/*
-	public void dumpContentResolver(ContentResolver content, OutputStream output) {
-
-	}*/
+	public void dumpContentResolver(Uri uri, OutputStream output) throws IOException {
+		InputStream input = getContentResolver().openInputStream(uri);
+		if(input == null) {
+			return;
+		}
+		output.write(input.read());
+	}
 
 	public void export(int exportType) {
 		// Make sure we have the proper permissions
@@ -168,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
 			this.showMessage("could not export messages: " + e.toString());
 			return;
 		}
-		// Export MMS data
+		// Export MMS message parts data
 		if(exportType == MainActivity.MMS_EXPORT) {
 			Log.d("adrs", "About to dump MMS parts");
 			Cursor dataCursor = getContentResolver().query(
@@ -178,17 +183,50 @@ public class MainActivity extends AppCompatActivity {
 					null,
 					null);
 
-			String dataPath = prefix + "-Parts-Export-" + timestamp + ".json";
-			exportFile = this.getExportFile(dataPath);
+			exportPath = prefix + "-Parts-Export-" + timestamp + ".json";
+			exportFile = this.getExportFile(exportPath);
 			try {
 				// TODO: run in separate thread
 				// TODO: show progress bar + cancel button?
 				this.dumpToJson(dataCursor, new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(exportFile)), "UTF-8"));
-				dataCursor.close();
 			} catch (IOException e) {
 				this.showMessage("could not export MMS parts: " + e.toString());
 				return;
 			}
+
+			Log.d("adrs", "exported parts metadata");
+			// Write attachments to files
+			// see: https://stackoverflow.com/questions/9492041/android-what-to-do-with-application-smil-mime-type
+			// TODO: create zip file
+			dataCursor.moveToFirst();
+			while (dataCursor.moveToNext()) {
+				// See skip rows that are not attachments
+				String dataPath = dataCursor.getString(dataCursor.getColumnIndexOrThrow("_data"));
+				if(dataPath == null) {
+					continue;
+				}
+				// Determine attachment file type
+				String mime = dataCursor.getString(dataCursor.getColumnIndexOrThrow("ct"));
+				// TODO: go from mime type to file extension
+				// Save attachment as "MMS-part-<id>.<proper extension>"
+				String id = dataCursor.getString(dataCursor.getColumnIndexOrThrow("_id"));
+				// Make sure id is integer
+				id = String.valueOf(Integer.valueOf(id, 10));
+				Log.d("adrs", "id:" + id + ", data: " + dataPath + ", mime:" + mime);
+
+				File partFile = this.getExportFile("MMS-part-" + id);
+				try {
+					//this.dumpToJson(dataCursor, new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(partFile)), "UTF-8"));
+
+					this.dumpContentResolver(Uri.parse("content://mms/part/" + id),
+							new FileOutputStream(partFile));
+				} catch (FileNotFoundException e){
+					Log.d("adrs", "Error saving part "+ id + ": " + e.toString());
+				} catch (IOException e){
+					Log.d("adrs", "Error saving part "+ id + ": " + e.toString());
+				}
+			}
+			dataCursor.close();
 		}
 		this.showMessage("Finished Export");
 	}
