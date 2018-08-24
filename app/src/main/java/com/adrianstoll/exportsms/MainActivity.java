@@ -13,13 +13,16 @@ import android.util.JsonWriter;
 import android.util.Log;
 import android.view.View;
 import android.provider.Telephony.Sms;
+import android.provider.Telephony.Mms;
 import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
     @Override
@@ -124,22 +127,31 @@ public class MainActivity extends AppCompatActivity {
 		}
 
 		// Get a cursor into the SMS message database
+		// https://stackoverflow.com/questions/3012287/how-to-read-mms-data-in-android/6446831#6446831 does not get all of them
+		// Does not get all messages :(
+		//Telephony.MmsSms.CONTENT_CONVERSATIONS_URI,
+
+		// TODO: do for Mms.CONTENT_URI too
 		Cursor messageCursor = getContentResolver().query(
-				Telephony.Sms.CONTENT_URI,
+				Sms.CONTENT_URI,
 				null,
 				null,
 				null,
 				null);
 
 		// Create file to export messages to
-		File exportFile = this.getExportFile("ExportSms.json");
+		String timestamp = new SimpleDateFormat("yyyyMMdd").format(new Date());
+		String exportPath = "SMS-Export-" + timestamp + ".json";
+		File exportFile = this.getExportFile(exportPath);
 		if(exportFile.exists()) {
-			this.showMessage("Export file in downloads already exists. Aborting.");
+			this.showMessage("File " + exportPath + " in downloads already exists. Aborting.");
 			return;
 		}
 		Log.d("adrs", "About to dump");
 		// Dump messages to json file
 		try {
+			// TODO: run in separate thread
+			// TODO: show progress bar + cancel button?
 			this.dumpToJson(messageCursor, new OutputStreamWriter(new FileOutputStream(exportFile), "UTF-8"));
 		} catch (IOException e) {
 			this.showMessage("could not export messages: " + e.toString());
@@ -148,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
 		this.showMessage("Finished Export");
 	}
     public void exportHandler(View view) {
+		// TODO: export Multimedia SMS + annotate with contact names
         exportSMS();
     }
 }
