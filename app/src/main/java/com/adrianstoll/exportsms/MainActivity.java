@@ -212,14 +212,21 @@ public class MainActivity extends AppCompatActivity {
 				}
 				// Determine attachment file type
 				String mime = dataCursor.getString(dataCursor.getColumnIndexOrThrow("ct"));
-				// TODO: go from mime type to file extension
+				String extension = "";
+				if(mime != null) {
+					String[] parts = mime.split("/");
+					if(parts.length > 0) {
+						extension = "." + parts[parts.length - 1];
+					}
+				}
 				// Save attachment as "MMS-part-<id>.<proper extension>"
 				String id = dataCursor.getString(dataCursor.getColumnIndexOrThrow("_id"));
 				// Make sure id is integer
 				id = String.valueOf(Integer.valueOf(id, 10));
 				Log.d("adrs", "id:" + id + ", data: " + dataPath + ", mime:" + mime);
 
-				File partFile = this.getExportFile("MMS-part-" + id);
+				// TODO: use origional file name if known
+				File partFile = this.getExportFile("MMS-part-" + id + extension);
 				try {
 					//this.dumpToJson(dataCursor, new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(partFile)), "UTF-8"));
 
